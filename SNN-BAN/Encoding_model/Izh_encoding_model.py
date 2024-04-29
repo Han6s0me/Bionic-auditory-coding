@@ -296,7 +296,7 @@ for idx in range(len(train_data)):
 test=np.stack(TEST, axis=0)
 train_data=test
 
-# Lzh encoding
+# Izh encoding
 def lzhikevich_model(T,I, a, b, c, d):
     V_Statue=[]
     v = -65  
@@ -344,7 +344,7 @@ test123=np.stack(TEST, axis=0)
 train_data=test123
 
 #%% Save data  Switch the save path according to the datasets. For excample ../TID/.. or ../RWCP/..
-savemat('../After_encoding_data/TID/Lzh_encoding/train_data_10T.mat', {'train_data': train_data})
-savemat('../After_encoding_data/TID/Lzh_encoding/label_data_10T.mat', {'train_labels': train_labels})
-savemat('../After_encoding_data/TID/Lzh_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
-savemat('../After_encoding_data/TID/Lzh_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})
+savemat('../After_encoding_data/TID/Izh_encoding/train_data_10T.mat', {'train_data': train_data})
+savemat('../After_encoding_data/TID/Izh_encoding/label_data_10T.mat', {'train_labels': train_labels})
+savemat('../After_encoding_data/TID/Izh_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
+savemat('../After_encoding_data/TID/Izh_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})
