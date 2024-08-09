@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="wzm@10.39.10.14:10010 password (2)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="wzm@10.12.43.89:22 password" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="88-8x3090">
         <serverdata>
@@ -13,6 +13,13 @@
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="wzm@10.12.43.89:22 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/wzm/Workspace/neural-coding/ccm" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

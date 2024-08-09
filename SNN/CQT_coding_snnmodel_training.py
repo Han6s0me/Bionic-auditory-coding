@@ -18,15 +18,21 @@ import csv
 parser = ArgumentParser()
 parser.add_argument('--spec', type=str, default='cqt', help='spectrogram type')
 parser.add_argument('--net', type=str, default='snn', help='network type')
+parser.add_argument('--split', type=str, default='raw', help='data split type')
 
 args = parser.parse_args()
 
 # 参数
 train_dir = './snndatabase/TID_DATA_8k_all/'
+if args.split != 'raw':
+    train_dir = './snndatabase/TID_DATA_8k_all_all'
+test_dir = './snndatabase/TID_TEST_8k_all/'
+
 # train_dir = '/mnt/data/CCM/snndatabase/RWCP_train_8k/'
+Max_num = 83
 T = 10
 batch_size = 64
-learning_rate = 1e-2
+learning_rate = 1e-3
 tau = 4.0
 train_epoch = 200
 savepath = './Cochlea_Coding_Eng/T10/'
@@ -395,7 +401,7 @@ def read_origindata(dir):  # 读取初始编码
             if len(segments) != 0:
                 sounddata = sounddata[segments[0][0]:segments[-1][1]]
             sounddata = normalize_audio_peak(sounddata, 1)
-            if args.spec == 'cqt':
+            if 'cqt' in args.spec:
                 print('Using constant-Q transform')
                 cqtpec = cqt(sounddata, sr=sample_rate, fmin=32, n_bins=83, hop_length=96)
                 # Engry = abs(cqtpec)**2
@@ -445,63 +451,47 @@ def read_origindata(dir):  # 读取初始编码
     return data, labels
 
 
-# train_dir=r'D:\浙大项目\SNN\Database\DATA\DATA_WAV'
-# train_dir='/mnt/data/CCM/snndatabase/DATA_WAV/'
-# train_dir = '/mnt/data/CCM/snndatabase/TID_DATA_8k/'
-train_data, train_labels = read_origindata(train_dir)
-# #%%  计算能量
-# TEST_engry=train_data[0]
-# #%%
-# # TEST_engry_mean=TEST_engry.mean(axis=1)
-# # TEST=[]
-# cell_array = np.empty((len(train_data),), dtype=object)
-# for idx in range(len(train_data)):
-#     TEST_engry = train_data[idx]
-#     # TEST_engry_mean = TEST_engry.mean(axis=1)
-#     # TEST.append(TEST_engry_mean)
-#     # TEST.append(np.array(TEST_engry, dtype=np.object))
-#     cell_array[idx]=TEST_engry
-# # test=np.stack(TEST, axis=0)
-# # result_engry=test
-# # result_engry=np.array(TEST)
-# #%%
-# from scipy.io import savemat
-# # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/Energy_TID.mat', {'train_data': result_engry})
-# # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/label_Energy_TID.mat', {'train_labels': train_labels})
-# savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/Energy_TID_training.mat', {'my_cell_array': cell_array})
-# #%%
-Max_num = 83
-# for idx in range(len(train_data)):
-#     temp=train_data[idx].shape[1];
-#     if temp>Max_num:
-#         Max_num=temp
+def data_pad(train_data):
+    # #%%  计算能量
+    # TEST_engry=train_data[0]
+    # #%%
+    # # TEST_engry_mean=TEST_engry.mean(axis=1)
+    # # TEST=[]
+    # cell_array = np.empty((len(train_data),), dtype=object)
+    # for idx in range(len(train_data)):
+    #     TEST_engry = train_data[idx]
+    #     # TEST_engry_mean = TEST_engry.mean(axis=1)
+    #     # TEST.append(TEST_engry_mean)
+    #     # TEST.append(np.array(TEST_engry, dtype=np.object))
+    #     cell_array[idx]=TEST_engry
+    # # test=np.stack(TEST, axis=0)
+    # # result_engry=test
+    # # result_engry=np.array(TEST)
+    # #%%
+    # from scipy.io import savemat
+    # # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/Energy_TID.mat', {'train_data': result_engry})
+    # # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/label_Energy_TID.mat', {'train_labels': train_labels})
+    # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/Energy_TID_training.mat', {'my_cell_array': cell_array})
+    # #%%
+    # for idx in range(len(train_data)):
+    #     temp=train_data[idx].shape[1];
+    #     if temp>Max_num:
+    #         Max_num=temp
 
-TEST = []
-for idx in range(len(train_data)):
-    if Max_num > train_data[idx].shape[1]:
-        zeronum = abs(Max_num - train_data[idx].shape[1]);
-        temp = np.pad(train_data[idx], ((0, 0), (0, zeronum)))
-        # TEST.append(temp)
-    else:
-        temp = train_data[idx][:, 0:Max_num]
-    TEST.append(temp)
+    TEST = []
+    for idx in range(len(train_data)):
+        if Max_num > train_data[idx].shape[1]:
+            zeronum = abs(Max_num - train_data[idx].shape[1]);
+            temp = np.pad(train_data[idx], ((0, 0), (0, zeronum)))
+            # TEST.append(temp)
+        else:
+            temp = train_data[idx][:, 0:Max_num]
+        TEST.append(temp)
 
-# test=np.array(TEST)
-test = np.stack(TEST, axis=0)
-train_data = test
-
-# % 参数  平均频率
-freq = []
-for idx in range(7):
-    # temp=np.arange(2**(5+idx),2**(6+idx),((2**(6+idx)-2**(5+idx))/13));
-    temp = np.linspace(2 ** (5 + idx), 2 ** (6 + idx), 13);
-    freq.append(temp)
-
-freq = np.stack(freq, axis=0)
-freq = freq.reshape(-1)
-freq = np.unique(freq)
-freq = freq[0:84]
-Freq = freq[0:train_data.shape[1]]
+    # test=np.array(TEST)
+    test = np.stack(TEST, axis=0)
+    train_data = test
+    return train_data
 
 
 # %  lzhikevich简单写
@@ -528,51 +518,102 @@ def lzhikevich_model(T, I, a, b, c, d):
     return np.array(Timepoint), np.array(V_Statue)
 
 
-# #%%
-# import numpy as np
-file = './snndatabase/CQT_a_list.txt'
-a_list = np.zeros((83,))
-f = open(file, 'r')
-content = f.readlines()
-f.close()
-
-# a_list=np.array(content)
-row = 0
-for items in content:
-    data_i = items.split()
-    for x in data_i:
-        a_list[row] = x
-        row += 1
-
 # % 只做了a的优化
 # T = 10
-TEST = []
-for idx in range(train_data.shape[0]):
-    data_per_file = train_data[idx, :, :]
-    F_data = []
-    T_data = []
-    for time in range(data_per_file.shape[1]):
-        T_temp = []
-        for frq in range(data_per_file.shape[0]):
-            Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
-
-            spike_array = np.zeros(T, dtype=bool)
-            for i in Timepoint:
-                spike_array[i] = True
-            T_temp = F_data.append(spike_array)
-            # T_temp=np.stack(F_data,axis=0)
-            pass
-        T_temp = np.stack(F_data, axis=0)
-        # T_temp=np.array(T_temp)
-        T_data.append(T_temp)
+def izh_encoding(train_data, a_list):
+    TEST = []
+    for idx in range(train_data.shape[0]):
+        data_per_file = train_data[idx, :, :]
         F_data = []
-        T_temp = []
-    test = np.stack(T_data, axis=0)
-    TEST.append(test)
-    print(idx)
+        T_data = []
+        for time in range(data_per_file.shape[1]):
+            T_temp = []
+            for frq in range(data_per_file.shape[0]):
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
 
-test123 = np.stack(TEST, axis=0)
-train_data = test123
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq,0], a_list[frq,1], a_list[frq,2], a_list[frq,3])
+                temp = int(data_per_file[frq][time] * 10)
+                if temp == 10:
+                    temp = 9
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq, temp],
+                                                       a_list[frq, temp + 10],
+                                                       a_list[frq, temp + 20], a_list[frq, temp + 30])
+
+                spike_array = np.zeros(T, dtype=bool)
+                for i in Timepoint:
+                    spike_array[i] = True
+                T_temp = F_data.append(spike_array)
+                # T_temp=np.stack(F_data,axis=0)
+                pass
+            T_temp = np.stack(F_data, axis=0)
+            # T_temp=np.array(T_temp)
+            T_data.append(T_temp)
+            F_data = []
+            T_temp = []
+        test = np.stack(T_data, axis=0)
+        TEST.append(test)
+        print(idx)
+
+    test123 = np.stack(TEST, axis=0)
+    train_data = test123
+    return train_data
+
+
+# train_dir=r'D:\浙大项目\SNN\Database\DATA\DATA_WAV'
+# train_dir='/mnt/data/CCM/snndatabase/DATA_WAV/'
+# train_dir = '/mnt/data/CCM/snndatabase/TID_DATA_8k/'
+encoding_cache_path = os.path.join(savepath, args.split + '-' + args.spec + '-encoding_cache-16-M83.npy')
+if os.path.exists(encoding_cache_path):
+    print('Loading encoding cache from', encoding_cache_path)
+    encoding_cache = np.load(encoding_cache_path, allow_pickle=True).item()
+    train_data = encoding_cache['train_data']
+    train_labels = encoding_cache['train_labels']
+    real_test_data = encoding_cache['real_test_data']
+    real_test_labels = encoding_cache['real_test_labels']
+else:
+    print('Generating encoding cache to', encoding_cache_path)
+    train_data, train_labels = read_origindata(train_dir)
+    real_test_data, real_test_labels = read_origindata(test_dir)
+    train_data = data_pad(train_data)
+    real_test_data = data_pad(real_test_data)
+    # % 参数  平均频率
+    freq = []
+    for idx in range(7):
+        # temp=np.arange(2**(5+idx),2**(6+idx),((2**(6+idx)-2**(5+idx))/13));
+        temp = np.linspace(2 ** (5 + idx), 2 ** (6 + idx), 13);
+        freq.append(temp)
+
+    freq = np.stack(freq, axis=0)
+    freq = freq.reshape(-1)
+    freq = np.unique(freq)
+    freq = freq[0:84]
+    Freq = freq[0:train_data.shape[1]]
+
+    import numpy as np
+
+    file = './snndatabase/CQT_a_b_c_d_list_real_fenduan_16.txt'
+    a_list = np.zeros((83, 40))
+    f = open(file, 'r')
+    content = f.readlines()
+    f.close()
+    # a_list=np.array(content)
+    row = 0
+    for items in content:
+        data_i = items.split()
+        print(row)
+        idx = 0
+        for x in data_i:
+            a_list[row][idx] = x
+            idx += 1
+        row += 1
+
+    train_data = izh_encoding(train_data, a_list)
+    real_test_data = izh_encoding(real_test_data, a_list)
+    np.save(encoding_cache_path,
+            {'train_data': train_data, 'train_labels': train_labels, 'real_test_data': real_test_data,
+             'real_test_labels': real_test_labels})
+
 # #%% 保存数据
 # from scipy.io import savemat
 # savemat('/home/handsome/PythonProject/SNN/snnmodel/After_coding_data/Bioinspired_cochlea_coding/train_data_10T_real.mat', {'train_data': train_data})
@@ -626,16 +667,18 @@ with open(savepath + 'summary_' + args.spec + '_' + args.net + '_' + 'lif.csv', 
     summary = {
         'best_acc': 0,
         'best_loss': 0,
+        'real_test_acc': 0,
         'mode_path': 0,
     }
     writer = csv.DictWriter(file, fieldnames=summary.keys())
     writer.writeheader()  # 写入头部，即字段名
 # %
-for id in range(10):
+for id in range(1):
     random_state = (id + 1) * 10
-    (X_train, X_test, Y_train, Y_test) = train_test_split(train_data, train_labels, test_size=0.1,
-                                                          random_state=random_state)
 
+
+    # (X_train, X_test, Y_train, Y_test) = train_test_split(train_data, train_labels, test_size=0,
+    #                                                       random_state=random_state)
 
     # % 数据封装
     # batch_size = 64
@@ -677,11 +720,20 @@ for id in range(10):
             super().__init__()
 
             self.fc = nn.Sequential(
-                nn.Flatten(),
+                # nn.Flatten(),
                 # layer.Dropout(0.7),
-                nn.Linear(83 * Max_num, 1024, bias=False),
-                neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
-                layer.Dropout(0.5),
+                # nn.Conv2d(1, 8, kernel_size=(3, 3), stride=2, padding=(1, 1), bias=False),
+                # nn.BatchNorm2d(8),
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+                nn.Flatten(),
+                # nn.Linear(83 * Max_num, 1024, bias=False),
+                nn.Linear(83, 1024, bias=False),
+
+                # layer.BatchNorm1d(1024),
+                # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
+                neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+
+                # layer.Dropout(0.5),
 
                 # layer.Dropout(0.7),
                 # nn.Linear(512, 256, bias=False),
@@ -695,11 +747,13 @@ for id in range(10):
             self.fc1 = nn.Sequential(
                 # layer.Dropout(0.7),
                 nn.Linear(1024, 11, bias=False),
-                neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
+                neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+                # layer.Dropout(0.2),
 
             )
 
         def forward(self, x: torch.Tensor):
+            # x = x.unsqueeze(1)
             x = self.fc(x)
             x = self.fc1(x)
             return x
@@ -718,10 +772,67 @@ for id in range(10):
             return out
 
 
+    def eval_model(net, test_loader, T):
+        net.eval()
+        # with torch.no_grad():
+        with torch.inference_mode():
+            # 每遍历一次全部数据集，就在测试集上测试一次
+            test_sum = 0
+            correct_sum = 0
+            val_losses = []
+            for test_data, test_label in test_loader:
+                test_data = test_data.to(device)
+                test_label = test_label.long().to(device)
+                test_label_one_hot = F.one_hot(test_label, 11).float()
+                # test_label_one_hot = F.one_hot(test_label.unsqueeze(0).to(torch.int64), 11).float()
+                # test_data_seq = test_data.permute(2, 0, 1)
+                test_data_seq = test_data.permute(1, 3, 0, 2).flatten(0, 1)
+                # test_data_seq = test_data.permute(3, 0, 2, 1)
+
+                test_output = 0
+                # for t in range(T):
+                #     test_output +=net(test_data_seq[t])  # batch_size x 4 tensor
+                # test_output = test_output / T
+                if args.net == 'snn':
+                    for t in range(T):
+                        # encoded_data=test_data[:,t,:,:]
+                        # encoded_data = encoder(test_data)
+                        # test_output += net(encoded_data)
+                        test_output += net(test_data_seq[t])
+                    test_output = test_output / T
+                elif args.net == 'rnn':
+                    test_output = net(test_data_seq)
+                elif args.net == 'cnn':
+                    test_output = net(test_data_seq)
+
+                val_loss = F.mse_loss(test_output, test_label_one_hot)
+                # test_label_one_hot = test_label_one_hot.squeeze(0)
+                # test_label_one_hot=test_label
+                # val_loss = F.cross_entropy(test_output, test_label_one_hot)
+                # val_loss=torch.nn.CrossEntropyLoss(test_output, test_label_one_hot)
+                val_losses.append(val_loss.item())
+                correct_sum += (test_output.max(1)[1] == test_label).float().sum().item()  # 预测正确的样本数
+                test_sum += test_label.numel()  # numel()用来返回数组中元素的个数
+                # print('test sample numbers:', test_sum)
+                functional.reset_net(net)
+
+            epoch_val_loss = np.array(val_losses).mean()
+            test_accuracy = correct_sum / test_sum
+
+            print('Epoch %s' % (epoch + 1), 'test_loss:', '%.5f' % epoch_val_loss, 'test_accuracy:',
+                  '%.5f' % test_accuracy)
+            return test_accuracy, epoch_val_loss
 
 
     # %
-    train_loader, test_loader = data_package(X_train, Y_train, X_test, Y_test, batch_size)
+    # train_loader, test_loader = data_package(X_train, Y_train, X_test, Y_test, batch_size)
+    train_loader = DataLoader(
+        TensorDataset(torch.from_numpy(train_data).float(), torch.from_numpy(train_labels)),
+        batch_size=batch_size, shuffle=False)
+    real_test_loader = DataLoader(
+        TensorDataset(torch.from_numpy(real_test_data).float(), torch.from_numpy(real_test_labels)),
+        batch_size=batch_size, shuffle=False)
+    test_loader = real_test_loader
     # % 网络训练   data的格式[N,t,F,T]---t是语音时间，F是频率，T是神经元仿真时间，N是样本
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
@@ -745,11 +856,14 @@ for id in range(10):
         net = RNNauditory().to(device)
     elif args.net == 'cnn':
         from model.TCN import TemporalConvNet
+
         net = TemporalConvNet(num_inputs=83 * Max_num, num_channels=[256, 11], kernel_size=2, dropout=0.5).to(device)
     print(net)
     log_dir = ''
     # 使用Adam优化器
-    optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=0.01)
+    # optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate, weight_decay=0.001)
+
+    optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=0)
     # optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=20, verbose=True)
     # early_stopping = EarlyStopping(None,patience=50, verbose=True)
@@ -785,7 +899,9 @@ for id in range(10):
             label_one_hot = F.one_hot(label, 11).float()
             # label_one_hot = F.one_hot(label.unsqueeze(0).to(torch.int64), 11).float()
             # data_seq = data.permute(1,0,2,3)
-            data_seq = data.permute(3, 0, 2, 1)
+            # data_seq = data.permute(3, 0, 2, 1)
+            data_seq = data.permute(1, 3, 0, 2).flatten(0, 1)
+
             out_spikes_counter_frequency = 0
             # w, h = data.shape
             # data = torch.from_numpy(data)
@@ -836,63 +952,19 @@ for id in range(10):
         train_accuracy_all.append(epoch_train_accuracy[-1])
 
         # 验证模型
-        net.eval()
-        # with torch.no_grad():
-        with torch.inference_mode():
-            # 每遍历一次全部数据集，就在测试集上测试一次
-            test_sum = 0
-            correct_sum = 0
-            val_losses = []
-            for test_data, test_label in test_loader:
-                test_data = test_data.to(device)
-                test_label = test_label.long().to(device)
-                test_label_one_hot = F.one_hot(test_label, 11).float()
-                # test_label_one_hot = F.one_hot(test_label.unsqueeze(0).to(torch.int64), 11).float()
-                # test_data_seq = test_data.permute(2, 0, 1)
-                # test_data_seq = test_data.permute(1,0,2,3)
-                test_data_seq = test_data.permute(3, 0, 2, 1)
-
-                test_output = 0
-                # for t in range(T):
-                #     test_output +=net(test_data_seq[t])  # batch_size x 4 tensor
-                # test_output = test_output / T
-                if args.net == 'snn':
-                    for t in range(T):
-                        # encoded_data=test_data[:,t,:,:]
-                        # encoded_data = encoder(test_data)
-                        # test_output += net(encoded_data)
-                        test_output += net(test_data_seq[t])
-                    test_output = test_output / T
-                elif args.net == 'rnn':
-                    test_output = net(test_data_seq)
-                elif args.net == 'cnn':
-                    test_output = net(test_data_seq)
-
-                val_loss = F.mse_loss(test_output, test_label_one_hot)
-                # test_label_one_hot = test_label_one_hot.squeeze(0)
-                # test_label_one_hot=test_label
-                # val_loss = F.cross_entropy(test_output, test_label_one_hot)
-                # val_loss=torch.nn.CrossEntropyLoss(test_output, test_label_one_hot)
-                val_losses.append(val_loss.item())
-                correct_sum += (test_output.max(1)[1] == test_label).float().sum().item()  # 预测正确的样本数
-                test_sum += test_label.numel()  # numel()用来返回数组中元素的个数
-                # print('test sample numbers:', test_sum)
-                functional.reset_net(net)
-
-            epoch_val_loss = np.array(val_losses).mean()
-            validation_loss_all.append(epoch_val_loss)
-            test_accuracy = correct_sum / test_sum
-
-            print('Epoch %s' % (epoch + 1), 'test_loss:', '%.5f' % epoch_val_loss, 'test_accuracy:',
-                  '%.5f' % test_accuracy)
-            validation_accuracy_all.append(test_accuracy)
-
-            if max_test_accuracy < test_accuracy:
-                max_test_accuracy = test_accuracy
-                # print('saving net...')
-                # torch.save(net, './models/ccm_snn_model_01.pth')
-                # print('saved model successfully')
+        test_accuracy, epoch_val_loss = eval_model(net, test_loader, T)
+        validation_accuracy_all.append(test_accuracy)
+        validation_loss_all.append(epoch_val_loss)
         scheduler.step(epoch_val_loss)
+        if (test_accuracy > max_test_accuracy):
+            import copy
+
+            max_test_accuracy = test_accuracy
+            best_state = {
+                'net': copy.deepcopy(net.state_dict()),
+                'optimizer': optimizer.state_dict(),
+                'epoch': epoch,
+            }
 
         # early_stopping(epoch_val_loss, net)
         # 达到早停止条件时，early_stop会被置为True
@@ -933,9 +1005,10 @@ for id in range(10):
     else:
         print('ok I make it')
         os.makedirs(savepath)
-    filename = savepath + 'Max_num:%d'%Max_num + '_' + args.net + '_' + 'acc:%.4f' % train_accuracy_all[
+    file_prefix = savepath + 'Max_num:%d' % Max_num + '_' + args.net + '_' + 'acc:%.4f' % train_accuracy_all[
         -1] + '_' + 'val_acc:%.4f' % \
-               validation_accuracy_all[-1] + '_' + str(timestamp) + '_train_result.csv'
+                  validation_accuracy_all[-1] + '_' + str(timestamp)
+    filename = file_prefix + '_train_result.csv'
     with open(filename, 'w', newline='') as file:
         fieldnames = ['epochs', 'train_accuracy_all', 'train_loss_all', 'validation_accuracy_all',
                       'validation_loss_all']
@@ -957,21 +1030,21 @@ for id in range(10):
                 {'epochs': epochs, 'train_accuracy_all': train_accuracy_alls, 'train_loss_all': train_loss_alls,
                  'validation_accuracy_all': validation_accuracy_alls, 'validation_loss_all': validation_loss_alls})
 
-    modelfilename = savepath + 'Spec:' + args.spec + '_' + args.net + '_Max_num:%d' % Max_num + '_' + 'acc:%.4f' % \
-                    train_accuracy_all[
-                        -1] + '_' + 'val_acc:%.4f' % validation_accuracy_all[-1] + '_' + str(timestamp) + '.pth'
-    torch.save(net, modelfilename)
+    modelfilename = file_prefix + '.pth'
+    torch.save(best_state, modelfilename)
+    net.load_state_dict(best_state['net'])
+    real_test_accuracy, real_test_loss = eval_model(net, real_test_loader, T)
     with open(savepath + 'summary_' + args.spec + '_' + args.net + '_' + 'izh.csv', mode='a', newline='') as file:
         summary = {
             'best_acc': max(validation_accuracy_all),
             'best_loss': min(validation_loss_all),
+            'real_test_acc': real_test_accuracy,
             'mode_path': filename,
         }
         writer = csv.DictWriter(file, fieldnames=summary.keys())
         # writer.writeheader()  # 写入头部，即字段名
         writer.writerow(summary)  # 写入字典作为CSV的一行
 
-# %%
 import random
 
 
