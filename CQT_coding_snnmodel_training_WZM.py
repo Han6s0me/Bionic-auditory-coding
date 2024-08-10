@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import librosa
 from argparse import ArgumentParser
 import csv
-from adabelief_pytorch import AdaBelief
+#from adabelief_pytorch import AdaBelief
 
 parser = ArgumentParser()
 parser.add_argument('--spec', type=str, default='cqt', help='spectrogram type')
@@ -38,22 +38,22 @@ batch_size = 64
 learning_rate = 1e-3
 tau = 4.0
 train_epoch = 200
-savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochlea_Coding_Eng_10/NEW_R/'
+savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochlea_Coding_Eng_10/NEW_RR/'
 # savepath='./snnmodel/Resultmodel_VAD_big/Cochlea_Coding_Eng/T20/'
 # random_state=60
-class LabelSmoothingCrossEntropy(torch.nn.Module):
-    def __init__(self, smoothing=0.1):
-        super(LabelSmoothingCrossEntropy, self).__init__()
-        self.smoothing = smoothing
-
-    def forward(self, input, target):
-        log_probs = F.log_softmax(input, dim=-1)
-        target = F.one_hot(target, num_classes=input.size(-1))
-        target = target.float()
-        target = target * (1 - self.smoothing) + self.smoothing / input.size(-1)
-        return -(target * log_probs).sum(dim=-1).mean()
-
-criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+# class LabelSmoothingCrossEntropy(torch.nn.Module):
+#     def __init__(self, smoothing=0.1):
+#         super(LabelSmoothingCrossEntropy, self).__init__()
+#         self.smoothing = smoothing
+#
+#     def forward(self, input, target):
+#         log_probs = F.log_softmax(input, dim=-1)
+#         target = F.one_hot(target, num_classes=input.size(-1))
+#         target = target.float()
+#         target = target * (1 - self.smoothing) + self.smoothing / input.size(-1)
+#         return -(target * log_probs).sum(dim=-1).mean()
+#
+# criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
 import random
 
 
@@ -432,6 +432,7 @@ def read_origindata(dir):  # 读取初始编码
                 # 转换为对数尺度
                 Engry = mel_spectrogram
             elif args.spec == 'mel2':
+                print("Using mel spectrogram")
                 mel_spectrogram = torchaudio.transforms.MelSpectrogram(
                     sample_rate=sample_rate,
                     n_fft=192,
@@ -443,7 +444,7 @@ def read_origindata(dir):  # 读取初始编码
                 Engry = mel_spectrogram(torch.from_numpy(sounddata)).numpy()
                 # Engry = librosa.power_to_db(mel_spectrogram, ref=np.max)
             elif args.spec == 'stft':
-                # print("Using naive stft")
+                print("Using naive stft")
                 stft_result = librosa.stft(y=sounddata, n_fft=164, hop_length=96)
                 magnitude, phase = librosa.magphase(stft_result)
                 # Engry = librosa.amplitude_to_db(magnitude, ref=np.max)
@@ -535,7 +536,42 @@ def lzhikevich_model(T, I, a, b, c, d):
 
 # % 只做了a的优化
 # T = 10
-def izh_encoding(train_data, a_list):
+def BAN_encoding(train_data, a_list):
+    TEST = []
+    for idx in range(train_data.shape[0]):
+        data_per_file = train_data[idx, :, :]
+        F_data = []
+        T_data = []
+        for time in range(data_per_file.shape[1]):
+            T_temp = []
+            for frq in range(data_per_file.shape[0]):
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq,0], a_list[frq,1], a_list[frq,2], a_list[frq,3])
+                temp = int(data_per_file[frq][time] * 10)
+                if temp == 10:
+                    temp = 9
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq, temp],
+                                                       a_list[frq, temp + 10],
+                                                       a_list[frq, temp + 20], a_list[frq, temp + 30])
+
+                spike_array = np.zeros(T, dtype=bool)
+                for i in Timepoint:
+                    spike_array[i] = True
+                T_temp = F_data.append(spike_array)
+                # T_temp=np.stack(F_data,axis=0)
+                pass
+            T_temp = np.stack(F_data, axis=0)
+            # T_temp=np.array(T_temp)
+            T_data.append(T_temp)
+            F_data = []
+            T_temp = []
+        test = np.stack(T_data, axis=0)
+        TEST.append(test)
+        print(idx)
+
+    test123 = np.stack(TEST, axis=0)
+    train_data = test123
+    return train_data
+def BAN_OLD_encoding(train_data, a_list):
     TEST = []
     for idx in range(train_data.shape[0]):
         data_per_file = train_data[idx, :, :]
@@ -546,14 +582,34 @@ def izh_encoding(train_data, a_list):
             for frq in range(data_per_file.shape[0]):
                 Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
 
-                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
-                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq,0], a_list[frq,1], a_list[frq,2], a_list[frq,3])
-                # temp = int(data_per_file[frq][time] * 10)
-                # if temp == 10:
-                #     temp = 9
-                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq, temp],
-                #                                        a_list[frq, temp + 10],
-                #                                        a_list[frq, temp + 20], a_list[frq, temp + 30])
+                spike_array = np.zeros(T, dtype=bool)
+                for i in Timepoint:
+                    spike_array[i] = True
+                T_temp = F_data.append(spike_array)
+                # T_temp=np.stack(F_data,axis=0)
+                pass
+            T_temp = np.stack(F_data, axis=0)
+            # T_temp=np.array(T_temp)
+            T_data.append(T_temp)
+            F_data = []
+            T_temp = []
+        test = np.stack(T_data, axis=0)
+        TEST.append(test)
+        print(idx)
+
+    test123 = np.stack(TEST, axis=0)
+    train_data = test123
+    return train_data
+def IZH_encoding(train_data):
+    TEST = []
+    for idx in range(train_data.shape[0]):
+        data_per_file = train_data[idx, :, :]
+        F_data = []
+        T_data = []
+        for time in range(data_per_file.shape[1]):
+            T_temp = []
+            for frq in range(data_per_file.shape[0]):
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, 0.02, 0.25, -65, 8)
 
                 spike_array = np.zeros(T, dtype=bool)
                 for i in Timepoint:
@@ -609,7 +665,7 @@ class LIFNeuron:
 
                 # return np.array(Timepoint),np.arange(0, time, dt), membrane_potential_trace
                 return np.array(Timepoint), membrane_potential_trace
-def lif_encoding(train_data):
+def LIF_encoding(train_data):
     TEST = []
     lif_neuron = LIFNeuron(membrane_resistance=1, membrane_time_scale=200)
     for idx in range(train_data.shape[0]):
@@ -638,11 +694,30 @@ def lif_encoding(train_data):
     test123 = np.stack(TEST, axis=0)
     train_data = test123
     return train_data
+def POISSON_encoding(train_data):
+    encoder = encoding.PoissonEncoder()
+    TEST = []
+    for idx in range(train_data.shape[0]):
+        # for idx in range(1):
+        data_per_file = train_data[idx, :, :]
+        x = torch.from_numpy(data_per_file)
+        w, h = x.shape
+        out_spike = torch.full((T, w, h), 0, dtype=torch.bool)
+        for t in range(T):
+            out_spike[t] = encoder(x)
+        TEST.append(np.array(out_spike))
+        print(idx)
+    test123 = np.stack(TEST, axis=0)
+    train_data = test123
+    train_data = train_data.permute(0, 3, 2, 1)
+
+    return train_data
+
 
 # train_dir=r'D:\浙大项目\SNN\Database\DATA\DATA_WAV'
 # train_dir='/mnt/data/CCM/snndatabase/DATA_WAV/'
 # train_dir = '/mnt/data/CCM/snndatabase/TID_DATA_8k/'
-encoding_cache_path = os.path.join(savepath, args.split + '-' + args.spec+ '-'+args.encoding+'-' +str(T)+'-encoding_cache.npy')
+encoding_cache_path = os.path.join(savepath, args.spec+ '-' +args.encoding+ '-' +str(T)+'-encoding_cache.npy')
 if os.path.exists(encoding_cache_path):
     print('Loading encoding cache from', encoding_cache_path)
     encoding_cache = np.load(encoding_cache_path, allow_pickle=True).item()
@@ -671,49 +746,57 @@ else:
 
     import numpy as np
     if args.encoding=='BAN':
+        file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan_18.txt'
+        # file='/mnt/data/CCM/snndatabase/CQT_a_list.txt'
 
+        a_list = np.zeros((83, 40))
+        # a_list = np.zeros((84, 40))
+        f = open(file, 'r')
+        content = f.readlines()
+        f.close()
+        # a_list=np.array(content)
+        row = 0
+        for items in content:
+            data_i = items.split()
+            print(row)
+            idx = 0
+            for x in data_i:
+                a_list[row][idx] = x
+                idx += 1
+            row += 1
 
-        # file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan_18.txt'
-        file='/mnt/data/CCM/snndatabase/CQT_a_list.txt'
+        train_data = BAN_encoding(train_data, a_list)
+        real_test_data = BAN_encoding(real_test_data, a_list)
+    elif args.encoding=='BAN_OLD':
 
-        # a_list = np.zeros((83, 40))
-        # # a_list = np.zeros((84, 40))
-        # f = open(file, 'r')
-        # content = f.readlines()
-        # f.close()
-        # # a_list=np.array(content)
-        # row = 0
-        # for items in content:
-        #     data_i = items.split()
-        #     print(row)
-        #     idx = 0
-        #     for x in data_i:
-        #         a_list[row][idx] = x
-        #         idx += 1
-        #     # if row == 82:
-        #     #     break
-        #     row += 1
+        file = '/mnt/data/CCM/snndatabase/CQT_a_list.txt'
 
-        a_list = np.zeros((83, ))
+        a_list = np.zeros((83,))
         f = open(file, 'r')
         content = f.readlines()
         f.close()
 
         # a_list=np.array(content)
-        row=0
+        row = 0
         for items in content:
             data_i = items.split()
             for x in data_i:
                 a_list[row] = x
-                row+=1
+                row += 1
 
-        train_data = izh_encoding(train_data, a_list)
-        real_test_data = izh_encoding(real_test_data, a_list)
+        train_data = BAN_OLD_encoding(train_data, a_list)
+        real_test_data = BAN_OLD_encoding(real_test_data, a_list)
     elif args.encoding =='LIF':
 
-        train_data = lif_encoding(train_data)
-        real_test_data = lif_encoding(real_test_data)
-        # 设置 LIF 神经元参数
+        train_data = LIF_encoding(train_data)
+        real_test_data = LIF_encoding(real_test_data)
+    elif args.encoding == 'IZH':
+        train_data = IZH_encoding(train_data)
+        real_test_data = IZH_encoding(real_test_data)
+    elif args.encoding == 'POISSON':
+        train_data = POISSON_encoding(train_data)
+        real_test_data = POISSON_encoding(real_test_data)
+
 
     np.save(encoding_cache_path,
             {'train_data': train_data, 'train_labels': train_labels, 'real_test_data': real_test_data,
@@ -767,7 +850,7 @@ else:
 # % 数据划分
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
-name_result=savepath + 'summary_' + args.split + '-' + args.spec+ '-'+args.encoding+'-' +str(T)+ args.net + '.csv'
+name_result=savepath + 'summary_'  + args.spec+ '-'+args.encoding+'-' +args.net+'-'+str(T) + '.csv'
 
 with open(name_result, 'a') as file:
     summary = {
@@ -844,7 +927,7 @@ for id in range(10):
 
             self.fc = nn.Sequential(
                 nn.Flatten(),
-                layer.Dropout(0.6),
+                # layer.Dropout(0.6),
                 # nn.Linear(83 * Max_num, 1024, bias=True),
                 nn.Linear(64 * (Max_num // 2), 1024, bias=True),
                 # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
@@ -997,7 +1080,7 @@ for id in range(10):
 
     validation_accuracy_all = []
     validation_loss_all = []
-    encoder = encoding.PoissonEncoder()
+    #encoder = encoding.PoissonEncoder()
     for epoch in range(train_epoch):
         print('------------Epoch:%s------------' % (epoch + 1))
         # 训练模型
@@ -1126,7 +1209,7 @@ for id in range(10):
     else:
         print('ok I make it')
         os.makedirs(savepath)
-    file_prefix = savepath + 'Max_num:%d' % Max_num + '_' + args.net + '_' + 'acc:%.4f' % train_accuracy_all[
+    file_prefix = savepath + args.spec+ '_'+args.encoding+'_' +args.net+'_'+str(T) +'_'+ 'acc:%.4f' % train_accuracy_all[
         -1] + '_' + 'val_acc:%.4f' % \
                   validation_accuracy_all[-1] + '_' + str(timestamp)
     filename = file_prefix + '_train_result.csv'
