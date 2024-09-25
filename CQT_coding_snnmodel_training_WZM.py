@@ -22,23 +22,27 @@ parser.add_argument('--net', type=str, default='snn', help='network type')
 parser.add_argument('--split', type=str, default='raw', help='data split type')
 parser.add_argument('--encoding', type=str, default='BAN', help='data split type')
 
+
 args = parser.parse_args()
 
 # 参数
 train_dir = '/mnt/data/CCM/snndatabase/TID_DATA_8k_all/'
+# train_dir = '/mnt/data/CCM/snndatabase/RWCP_train_8k_real/'
 # train_dir = '/mnt/data/CCM/snndatabase/TID_DATA_8k_all_all/'
-if args.split != 'raw':
-    train_dir = './snndatabase/TID_DATA_8k_all_all'
+# if args.split != 'raw':
+#     train_dir = './snndatabase/TID_DATA_8k_all_all'
 test_dir = '/mnt/data/CCM/snndatabase/TID_TEST_8k_all/'
-
+# test_dir='/mnt/data/CCM/snndatabase/RWCP_test_8k_real/'
 # train_dir = '/mnt/data/CCM/snndatabase/RWCP_train_8k/'
 Max_num = 83
 T = 10
 batch_size = 64
 learning_rate = 1e-3
-tau = 4.0
+tau = 2.0
 train_epoch = 200
-savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochlea_Coding_Eng_10/NEW_RR/'
+classnumber = 11
+savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochlea_Coding_Eng_10/TEST_for_BAN_Blist/TID_canshu20_37/'
+# savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochlea_Coding_Eng_10/TEST_for_MODEL_RWCP_VAD0.05/LIF_real/'
 # savepath='./snnmodel/Resultmodel_VAD_big/Cochlea_Coding_Eng/T20/'
 # random_state=60
 # class LabelSmoothingCrossEntropy(torch.nn.Module):
@@ -54,6 +58,7 @@ savepath = '/home/handsome/PythonProject/SNN/snnmodel/Model_TID_R_MSE_abcd/Cochl
 #         return -(target * log_probs).sum(dim=-1).mean()
 #
 # criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+# criterion = torch.nn.CrossEntropyLoss()
 import random
 
 
@@ -124,6 +129,68 @@ def pre_emphasis(signal, coefficient=0.97):
     """
     emphasized_signal = np.append(signal[0], signal[1:] - coefficient * signal[:-1])
     return emphasized_signal
+
+
+
+def preemphasis(y, coef=0.97, zi=None, return_zf=False):
+    """Pre-emphasize an audio signal with a first-order auto-regressive filter:
+
+        y[n] -> y[n] - coef * y[n-1]
+
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Audio signal
+
+    coef : positive number
+        Pre-emphasis coefficient.  Typical values of ``coef`` are between 0 and 1.
+
+        At the limit ``coef=0``, the signal is unchanged.
+
+        At ``coef=1``, the result is the first-order difference of the signal.
+
+        The default (0.97) matches the pre-emphasis filter used in the HTK
+        implementation of MFCCs [#]_.
+
+        .. [#] http://htk.eng.cam.ac.uk/
+
+    zi : number
+        Initial filter state.  When making successive calls to non-overlapping
+        frames, this can be set to the ``zf`` returned from the previous call.
+        (See example below.)
+
+        By default ``zi`` is initialized as ``2*y[0] - y[1]``.
+
+    return_zf : boolean
+        If ``True``, return the final filter state.
+        If ``False``, only return the pre-emphasized signal.
+
+    Returns
+    -------
+    y_out : np.ndarray
+        pre-emphasized signal
+
+    zf : number
+        if ``return_zf=True``, the final filter state is also returned
+    """
+
+    b = np.asarray([1.0, -coef], dtype=y.dtype)
+    a = np.asarray([1.0], dtype=y.dtype)
+
+    if zi is None:
+        # Initialize the filter to implement linear extrapolation
+        zi = 2 * y[..., 0] - y[..., 1]
+
+    zi = np.atleast_1d(zi)
+
+    y_out, z_f = scipy.signal.lfilter(b, a, y, zi=np.asarray(zi, dtype=y.dtype))
+
+    if return_zf:
+        return y_out, z_f
+
+    return y_out
+
 
 
 # % 音频缩放
@@ -275,16 +342,37 @@ def findMaxima(f, step):
 
 
 def VAD(signal, fs):
-    win = 0.05
-    step = 0.05
+    # win = 0.05
+    # step = 0.05
     # win = 0.025
     # step = 0.025
+
+    # win = 0.02
+    # step = 0.02 #gai
+
+    # win = 0.01
+    # step = 0.01
+
+    # win = 0.1
+    # step = 0.1
+
+    # win = 0.2
+    # step = 0.2
+    # win = 0.2
+    # step = 0.2
+    win = 0.05
+    step = 0.05
+
     Eor = ShortTimeEnergy(signal, int(win * fs), int(step * fs));
     Cor = SpectralCentroid(signal, int(win * fs), int(step * fs), fs);
     E = scipy.signal.medfilt(Eor[:, 0], 5)
     E = scipy.signal.medfilt(E, 5)
     C = scipy.signal.medfilt(Cor[:, 0], 5)
     C = scipy.signal.medfilt(C, 5)
+    # E = scipy.signal.medfilt(Eor[:, 0], 3)
+    # E = scipy.signal.medfilt(E, 3)
+    # C = scipy.signal.medfilt(Cor[:, 0], 3)
+    # C = scipy.signal.medfilt(C, 3)
 
     E_mean = np.mean(E);
     Z_mean = np.mean(C);
@@ -410,11 +498,18 @@ def read_origindata(dir):  # 读取初始编码
                 sounddata = sounddata
             else:
                 sounddata = add_noise(sounddata, random_number)
-            sounddata = pre_emphasis(sounddata)
+            # sounddata = pre_emphasis(sounddata)
+            sounddata = preemphasis(sounddata,coef=0.95)
 
             segments = VAD(sounddata, 8000)
             if len(segments) != 0:
-                sounddata = sounddata[segments[0][0]:segments[-1][1]]
+                # sounddata = sounddata[segments[0][0]:segments[-1][1]]
+                differences = [max(sublist) - min(sublist) for sublist in segments]
+                # 找到最大差值的索引
+                max_diff_index = differences.index(max(differences))
+                # 获取差值最大的子列表
+                list_with_max_diff = segments[max_diff_index]
+                sounddata = sounddata[list_with_max_diff[0]:list_with_max_diff[1]]
             sounddata = normalize_audio_peak(sounddata, 1)
             if 'cqt' in args.spec:
                 print('Using constant-Q transform')
@@ -423,6 +518,7 @@ def read_origindata(dir):  # 读取初始编码
                 # Engry=np.log10(np.abs(cqtpec))
                 cqtm, phase = librosa.core.magphase(cqtpec)
                 Engry = cqtm
+                # Engry = (np.abs(cqtm))**2
                 # Engry = librosa.amplitude_to_db(cqtm, ref=np.max)
             elif args.spec == 'mel':
                 # print("Using mel spectrogram")
@@ -445,7 +541,8 @@ def read_origindata(dir):  # 读取初始编码
                 # Engry = librosa.power_to_db(mel_spectrogram, ref=np.max)
             elif args.spec == 'stft':
                 print("Using naive stft")
-                stft_result = librosa.stft(y=sounddata, n_fft=164, hop_length=96)
+                # stft_result = librosa.stft(y=sounddata, n_fft=164, hop_length=32)
+                stft_result = librosa.core.stft(y=sounddata, n_fft=164, hop_length=96)
                 magnitude, phase = librosa.magphase(stft_result)
                 # Engry = librosa.amplitude_to_db(magnitude, ref=np.max)
                 Engry = magnitude
@@ -545,13 +642,19 @@ def BAN_encoding(train_data, a_list):
         for time in range(data_per_file.shape[1]):
             T_temp = []
             for frq in range(data_per_file.shape[0]):
-                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq,0], a_list[frq,1], a_list[frq,2], a_list[frq,3])
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq,0], a_list[frq,1], a_list[frq,2], a_list[frq,3])
                 temp = int(data_per_file[frq][time] * 10)
-                if temp == 10:
-                    temp = 9
+                # if temp == 10:
+                #     temp = 9
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq, temp],
+                #                                        a_list[frq, temp + 10],
+                #                                        a_list[frq, temp + 20], a_list[frq, temp + 30])
+                temp = int(data_per_file[frq][time] * 20)
+                if temp == 20:
+                    temp = 19
                 Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq, temp],
-                                                       a_list[frq, temp + 10],
-                                                       a_list[frq, temp + 20], a_list[frq, temp + 30])
+                                                       a_list[frq, temp + 20],
+                                                       a_list[frq, temp + 40], a_list[frq, temp + 60])
 
                 spike_array = np.zeros(T, dtype=bool)
                 for i in Timepoint:
@@ -580,8 +683,8 @@ def BAN_OLD_encoding(train_data, a_list):
         for time in range(data_per_file.shape[1]):
             T_temp = []
             for frq in range(data_per_file.shape[0]):
+                # Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
                 Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
-
                 spike_array = np.zeros(T, dtype=bool)
                 for i in Timepoint:
                     spike_array[i] = True
@@ -609,7 +712,7 @@ def IZH_encoding(train_data):
         for time in range(data_per_file.shape[1]):
             T_temp = []
             for frq in range(data_per_file.shape[0]):
-                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, 0.02, 0.25, -65, 8)
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, 0.02, 0.2, -65, 2) # 0.02 0.25 -65 8
 
                 spike_array = np.zeros(T, dtype=bool)
                 for i in Timepoint:
@@ -629,6 +732,34 @@ def IZH_encoding(train_data):
     test123 = np.stack(TEST, axis=0)
     train_data = test123
     return train_data
+# def IZH_encoding(train_data):
+#     TEST = []
+#     for idx in range(train_data.shape[0]):
+#         data_per_file = train_data[idx, :, :]
+#         T_data = []  # List to store time data
+#         for time in range(data_per_file.shape[1]):
+#             F_data = []  # List to store frequency data for each time point
+#             for frq in range(data_per_file.shape[0]):
+#                 Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, 0.02, 0.2, -65, 8)
+#
+#                 spike_array = np.zeros(T, dtype=bool)
+#                 for i in Timepoint:
+#                     spike_array[i] = True
+#                 F_data.append(spike_array)  # Properly append spike data to frequency data list
+#
+#             # Stack frequency data to form a time slice
+#             T_slice = np.stack(F_data, axis=0)
+#             T_data.append(T_slice)  # Append the time slice to time data list
+#
+#         # Stack all time slices to form complete data for one file
+#         test = np.stack(T_data, axis=0)
+#         TEST.append(test)
+#         print(idx)
+#
+#     # Stack all test data to recreate the train_data structure
+#     train_data = np.stack(TEST, axis=0)
+#     return train_data
+
 class LIFNeuron:
             def __init__(self, membrane_resistance=10, membrane_time_scale=8, firing_threshold=1):
                 self.membrane_resistance = membrane_resistance  # 膜电阻 (MΩ)
@@ -709,7 +840,11 @@ def POISSON_encoding(train_data):
         print(idx)
     test123 = np.stack(TEST, axis=0)
     train_data = test123
-    train_data = train_data.permute(0, 3, 2, 1)
+    # train_data = train_data.permute(0, 3, 2, 1)
+    temp = torch.from_numpy(train_data).type(torch.FloatTensor)
+    train_data = temp.permute(0, 3, 2, 1)
+    train_data = np.array(train_data)
+    # train_data = np.squeeze(train_data)
 
     return train_data
 
@@ -746,15 +881,18 @@ else:
 
     import numpy as np
     if args.encoding=='BAN':
-        file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan_18.txt'
+        # file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan_18.txt'
+        # file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan_59.txt'
+        file = '/home/handsome/MatlabProject/CQT_a_b_c_d_list_real_fenduan20_37.txt'
         # file='/mnt/data/CCM/snndatabase/CQT_a_list.txt'
-
-        a_list = np.zeros((83, 40))
+        #
+        # a_list = np.zeros((83, 40))
+        a_list = np.zeros((83, 80))
         # a_list = np.zeros((84, 40))
         f = open(file, 'r')
         content = f.readlines()
         f.close()
-        # a_list=np.array(content)
+        # a_list=np.array(content)+
         row = 0
         for items in content:
             data_i = items.split()
@@ -769,8 +907,8 @@ else:
         real_test_data = BAN_encoding(real_test_data, a_list)
     elif args.encoding=='BAN_OLD':
 
-        file = '/mnt/data/CCM/snndatabase/CQT_a_list.txt'
-
+        # file = '/mnt/data/CCM/snndatabase/CQT_a_list.txt'
+        file = '/home/handsome/MatlabProject/CQT_a_list_real.txt'
         a_list = np.zeros((83,))
         f = open(file, 'r')
         content = f.readlines()
@@ -864,7 +1002,7 @@ with open(name_result, 'a') as file:
 # %
 for id in range(10):
     random_state = (id + 1) * 10
-    # (X_train, X_test, Y_train, Y_test) = train_test_split(train_data, train_labels, test_size=0.1,
+    # (X_train, X_test, Y_train, Y_test) = train_test_split(train_data, train_labels, test_size=0.5,
     #                                                       random_state=random_state)
 
 
@@ -900,7 +1038,7 @@ for id in range(10):
 
     import torch
     import torch.nn as nn
-    from spikingjelly.activation_based import neuron, functional, surrogate, layer
+    from spikingjelly.activation_based import neuron,surrogate, functional, layer
     import torch.nn.functional as F
 
 
@@ -919,44 +1057,80 @@ for id in range(10):
         def __init__(self, tau):
             super().__init__()
             self.conv1 = nn.Sequential(
-                nn.Conv1d(83, 64, kernel_size=5, stride=1, padding=2),  # 假设输入为单通道
-                nn.MaxPool1d(kernel_size=2),
+                nn.Conv1d(83, 64, kernel_size=9 ,stride=1, padding=4),  # 假设输入为单通道
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.sigmoid()),
+                # nn.AvgPool1d(kernel_size=2),
+                nn.MaxPool1d(kernel_size=3),
+                # layer.Conv1d(83, 64, kernel_size=9 ,stride=1, padding=4),  # 假设输入为单通道
+                # layer.MaxPool1d(kernel_size=1),
                 neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
-                layer.Dropout(0.6)
+                # neuron.ParametricLIFNode(init_tau=tau),
+                # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
+                # layer.Dropout(0.6)
+
             )
+            # # 其中 channels = 1, height = 1 (一维信号转二维处理时的高度), width = signal_length
+            # self.conv2 = nn.Sequential(
+            #     nn.Conv2d(1, 64, kernel_size=(9, 9), stride=(1, 1), padding=(4, 4)),  # channels = 1, 使用二维卷积
+            #     # nn.Conv2d(64, 32, kernel_size=(7, 7), stride=(3, 3), padding=(3, 3)),  # channels = 1, 使用二维卷积
+            #     nn.MaxPool2d(kernel_size=(2, 2)),  # 对宽度维度进行池化
+            #     neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+            #     # layer.Dropout(0.6)
+            # )
+            # self.conv2 = nn.Sequential(
+            #     nn.Conv1d(64, 32, kernel_size=9, stride=1, padding=4),
+            #     nn.MaxPool1d(kernel_size=2),
+            #     neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+            #     layer.Dropout(0.6)
+            # )
 
             self.fc = nn.Sequential(
                 nn.Flatten(),
-                # layer.Dropout(0.6),
+                # layer.Flatten(),
+                layer.Dropout(0.5),
                 # nn.Linear(83 * Max_num, 1024, bias=True),
-                nn.Linear(64 * (Max_num // 2), 1024, bias=True),
+                nn.Linear(64 * (Max_num // 3), 1024, bias=False),
+                # layer.Linear(64 *(Max_num // 2), 1024, bias=False),
+                # nn.Linear(107584, 1024, bias=True),
+                # nn.Linear(512 , 1024, bias=True),
+                # nn.Linear(64 * (Max_num // 2) * (Max_num // 2), 1024, bias=True),  # 更新 Flatten 后的维度
                 # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
                 neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
+                # neuron.ParametricLIFNode(init_tau=tau),
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.sigmoid()),
 
                 layer.Dropout(0.5),
-
+                #
                 # layer.Dropout(0.7),
-                # nn.Linear(1024, 512, bias=True),
+                # nn.Linear(2048, 2048, bias=True),
                 # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
                 # layer.Dropout(0.5),
-                # nn.Linear(256, 256, bias=False),
-                # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
+                # nn.Linear(1024, 1024, bias=True),
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
                 # layer.Dropout(0.5),
 
             )
             self.fc1 = nn.Sequential(
-                # layer.Dropout(0.7),
-                nn.Linear(1024, 11, bias=True),
+                # layer.Dropout(0.8),
+                nn.Linear(1024, classnumber, bias=False),
+                # layer.Linear(1024,11,bias=False),
                 # neuron.LIFNode(tau=tau, surrogate_function=surrogate.ATan()),
                 neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.ATan()),
-
+                # neuron.ParametricLIFNode(init_tau=tau),
+                # neuron.ParametricLIFNode(init_tau=tau, surrogate_function=surrogate.sigmoid()),
 
             )
 
         def forward(self, x: torch.Tensor):
+            # print(f"Input shape: {x.shape}")
             x = self.conv1(x)
+            # x = self.conv2(x)
+            # print(f"After conv2 shape: {x.shape}")
             x = self.fc(x)
+            # print(f"After fc shape: {x.shape}")
             x = self.fc1(x)
+            # print(f"Output shape: {x.shape}")
             return x
 
 
@@ -984,11 +1158,15 @@ for id in range(10):
             for test_data, test_label in test_loader:
                 test_data = test_data.to(device)
                 test_label = test_label.long().to(device)
-                test_label_one_hot = F.one_hot(test_label, 11).float()
+                test_label_one_hot = F.one_hot(test_label, classnumber).float()
+                # test_label_one_hot=test_label
                 # test_label_one_hot = F.one_hot(test_label.unsqueeze(0).to(torch.int64), 11).float()
                 # test_data_seq = test_data.permute(2, 0, 1)
                 # test_data_seq = test_data.permute(1,0,2,3)
                 test_data_seq = test_data.permute(3, 0, 2, 1)
+                # test_data_seq = test_data.permute(1, 0, 2, 3)
+
+                # test_data_seq = test_data_seq.unsqueeze(2)
 
                 test_output = 0
                 # for t in range(T):
@@ -1013,6 +1191,7 @@ for id in range(10):
                 # val_loss=criterion(test_output, test_label_one_hot)
                 val_losses.append(val_loss.item())
                 correct_sum += (test_output.max(1)[1] == test_label).float().sum().item()  # 预测正确的样本数
+                # correct_sum += (test_output.argmax(dim=1) == test_label).float().sum().item()
                 test_sum += test_label.numel()  # numel()用来返回数组中元素的个数
                 # print('test sample numbers:', test_sum)
                 functional.reset_net(net)
@@ -1036,11 +1215,11 @@ for id in range(10):
         batch_size=batch_size, shuffle=True)
     real_test_loader = DataLoader(
         TensorDataset(torch.from_numpy(real_test_data).float(), torch.from_numpy(real_test_labels)),
-        batch_size=batch_size, shuffle=False)
+        batch_size=batch_size, shuffle=True)
     test_loader = real_test_loader
     # % 网络训练   data的格式[N,t,F,T]---t是语音时间，F是频率，T是神经元仿真时间，N是样本
 
-    device = torch.device("cuda:3" if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda:2" if torch.cuda.is_available() else 'cpu')
     print('Total GPU numbers:' + str(torch.cuda.device_count()), '\n', 'Being uesd GPU:' + str(device))
     torch.cuda.manual_seed(0)
     # batch_size = 64
@@ -1069,8 +1248,9 @@ for id in range(10):
     optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=0.01)
     # optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate,weight_decay=1e-4)
     # optimizer = AdaBelief(net.parameters(), lr=learning_rate, eps=1e-16, betas=(0.9, 0.999), weight_decay=1e-2,weight_decouple=True,rectify=True)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=20, verbose=True)
-    early_stopping = EarlyStopping(None,patience=100, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=32)
+    early_stopping = EarlyStopping(None,patience=20, verbose=True)
 
     train_times = 0
     max_test_accuracy = -1
@@ -1101,11 +1281,14 @@ for id in range(10):
             # data = data.cuda()
             # label = label.long().cuda()
 
-            label_one_hot = F.one_hot(label, 11).float()
+            label_one_hot = F.one_hot(label, classnumber).float()
+            # label_one_hot=label
             # label_one_hot = F.one_hot(label.unsqueeze(0).to(torch.int64), 11).float()
             # label_one_hot = smooth_labels(label_one_hot, smoothing=0.1)
             # data_seq = data.permute(1,0,2,3)
             data_seq = data.permute(3, 0, 2, 1)
+            # data_seq = data.permute(1, 0, 2, 3)
+            # data_seq = data_seq.unsqueeze(2)
             out_spikes_counter_frequency = 0
             # w, h = data.shape
             # data = torch.from_numpy(data)
@@ -1143,6 +1326,7 @@ for id in range(10):
 
             # 正确率的计算方法如下。认为输出层中脉冲发放频率最大的神经元的下标i是分类结果
             train_correct_sum += (out_spikes_counter_frequency.max(1)[1] == label).float().sum().item()
+            # train_correct_sum += (out_spikes_counter_frequency.argmax(dim=1) ==label).float().sum().item()
             train_sum += label.numel()
             train_accuracy = train_correct_sum / train_sum
 
@@ -1154,7 +1338,7 @@ for id in range(10):
         epoch_train_loss = np.array(train_losses).mean()
         train_loss_all.append(epoch_train_loss)
         train_accuracy_all.append(epoch_train_accuracy[-1])
-
+        # scheduler.step()
         # 验证模型
         test_accuracy, epoch_val_loss = eval_model(net, test_loader, T)
         validation_accuracy_all.append(test_accuracy)
@@ -1170,15 +1354,16 @@ for id in range(10):
                 'epoch': epoch,
             }
 
-        # early_stopping(epoch_val_loss, net)
-        # #达到早停止条件时，early_stop会被置为True
-        # if early_stopping.early_stop:
-        #     print("Early stopping")
-        #     break  # 跳出迭代，结束训练
+
 
         print(
             'dataset_dir={}, batch_size={}, learning_rate={}, T={}, log_dir={}, max_test_accuracy={}, train_times={}'.format(
-                train_dir, batch_size, learning_rate, T, log_dir, max_test_accuracy, train_times))
+                train_dir, batch_size, optimizer.param_groups[0]['lr'], T, log_dir, max_test_accuracy, train_times))
+        early_stopping(epoch_val_loss, net)
+        # 达到早停止条件时，early_stop会被置为True
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break  # 跳出迭代，结束训练
     # % 可视化训练结果
     epochs = range(1, len(validation_accuracy_all) + 1)
     plt.figure()
