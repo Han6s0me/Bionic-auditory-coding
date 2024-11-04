@@ -56,13 +56,13 @@ This repository provides a collection of spike encoding models, auditory dataset
 3. **Model Training**
    - Train models using `Model_training.py` by providing the desired configuration. For example:
      ```
-     python Model_training.py --spec cqt--net snn--encoding BAN
+     python Model_training.py --spec cqt --net snn --encoding BAN
      ```
 
 4. **Evaluate SNR Performance**
    - Use `Evaluation_SNR.py` to assess how well a given model performs at different SNR levels. For instance:
      ```
-     python Evaluation_SNR.py --spec cqt--net snn--encoding BAN--snr SNR
+     python Evaluation_SNR.py --spec cqt --net snn --encoding BAN --snr SNR
      ```
 
 ## Requirements
