@@ -25,7 +25,7 @@ test_dir = '../snndatabase/RWCP_test_8k_all/'
 T = 10  # timesteps
 
 # Speech pre-emphasis
-def pre_emphasis(signal, coefficient=0.97):
+def pre_emphasis(signal, coefficient=0.95):
 
     emphasized_signal = np.append(signal[0], signal[1:] - coefficient * signal[:-1])
 
@@ -258,7 +258,11 @@ def read_origindata(dir):
 
             segments = VAD(sounddata, 8000)
             if len(segments) != 0:
-                sounddata = sounddata[segments[0][0]:segments[-1][1]]
+                if len(segments) != 0:
+                differences = [max(sublist) - min(sublist) for sublist in segments]
+                max_diff_index = differences.index(max(differences))
+                list_with_max_diff = segments[max_diff_index]
+                sounddata = sounddata[list_with_max_diff[0]:list_with_max_diff[1]]
             sounddata = normalize_audio_peak(sounddata, 1)
             cqtpec = cqt(sounddata, sr=sample_rate, fmin=32, n_bins=83, hop_length=96)
       
@@ -343,8 +347,8 @@ for idx in range(train_data.shape[0]):
 test123=np.stack(TEST, axis=0)
 train_data=test123
 
-#%% Save data  Switch the save path according to the datasets. For excample ../TID/.. or ../RWCP/..
-savemat('../After_encoding_data/TID/Izh_encoding/train_data_10T.mat', {'train_data': train_data})
-savemat('../After_encoding_data/TID/Izh_encoding/label_data_10T.mat', {'train_labels': train_labels})
-savemat('../After_encoding_data/TID/Izh_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
-savemat('../After_encoding_data/TID/Izh_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})
+# #%% Save data  Switch the save path according to the datasets. For excample ../TID/.. or ../RWCP/..
+# savemat('../After_encoding_data/TID/Izh_encoding/train_data_10T.mat', {'train_data': train_data})
+# savemat('../After_encoding_data/TID/Izh_encoding/label_data_10T.mat', {'train_labels': train_labels})
+# savemat('../After_encoding_data/TID/Izh_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
+# savemat('../After_encoding_data/TID/Izh_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})

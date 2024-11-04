@@ -25,7 +25,7 @@ test_dir = '../snndatabase/RWCP_test_8k_all/'
 T = 10  # timesteps
 
 # Speech pre-emphasis
-def pre_emphasis(signal, coefficient=0.97):
+def pre_emphasis(signal, coefficient=0.95):
 
     emphasized_signal = np.append(signal[0], signal[1:] - coefficient * signal[:-1])
 
@@ -258,7 +258,12 @@ def read_origindata(dir):
 
             segments = VAD(sounddata, 8000)
             if len(segments) != 0:
-                sounddata = sounddata[segments[0][0]:segments[-1][1]]
+                if len(segments) != 0:
+                differences = [max(sublist) - min(sublist) for sublist in segments]
+                max_diff_index = differences.index(max(differences))
+                list_with_max_diff = segments[max_diff_index]
+                sounddata = sounddata[list_with_max_diff[0]:list_with_max_diff[1]]
+
             sounddata = normalize_audio_peak(sounddata, 1)
             cqtpec = cqt(sounddata, sr=sample_rate, fmin=32, n_bins=83, hop_length=96)
       
@@ -287,7 +292,6 @@ for idx in range(len(train_data)):
     if Max_num > train_data[idx].shape[1]:
        zeronum=abs(Max_num-train_data[idx].shape[1]);
        temp=np.pad(train_data[idx],((0,0),(0,zeronum)))
-       # TEST.append(temp)
     else:
        temp = train_data[idx][:, 0:Max_num]
     TEST.append(temp)
@@ -315,8 +319,8 @@ def lzhikevich_model(T,I, a, b, c, d):
 
     return np.array(Timepoint),np.array(V_Statue)
 
-file='./BAN_a_list.txt'
-a_list = np.zeros((83, ))
+file='./BAN_a_b_c_d_list.txt'
+parameter_list = np.zeros((83, 80))
 f = open(file, 'r')
 content = f.readlines()
 f.close()
@@ -325,7 +329,7 @@ row=0
 for items in content:
     data_i = items.split()
     for x in data_i:
-        a_list[row] = x
+        parameter_list[row] = x
         row+=1
 
 TEST=[]
@@ -336,8 +340,12 @@ for idx in range(train_data.shape[0]):
     for time in range(data_per_file.shape[1]):
         T_temp = []
         for frq in range(data_per_file.shape[0]):
-            Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, a_list[frq], 0.25, -65, 8)
-
+            temp = int(data_per_file[frq][time] * 20)
+                if temp == 20:
+                    temp = 19
+                Timepoint, V_Statue = lzhikevich_model(T, data_per_file[frq][time] * 100, parameter_list[frq, temp],
+                                                       parameter_list[frq, temp + 20],
+                                                       parameter_list[frq, temp + 40], parameter_list[frq, temp + 60])
             spike_array = np.zeros(T, dtype=bool)
             for i in Timepoint:
                 spike_array[i] = True
@@ -356,8 +364,8 @@ for idx in range(train_data.shape[0]):
 test123=np.stack(TEST, axis=0)
 train_data=test123
 
-#%% Save data  Switch the save path according to the datasets. For excample ../TID/.. or ../RWCP/..
-savemat('../After_encoding_data/TID/BAN_encoding/train_data_10T.mat', {'train_data': train_data})
-savemat('../After_encoding_data/TID/BAN_encoding/label_data_10T.mat', {'train_labels': train_labels})
-savemat('../After_encoding_data/TID/BAN_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
-savemat('../After_encoding_data/TID/BAN_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})
+# #%% Save data  Switch the save path according to the datasets. For excample ../TID/.. or ../RWCP/..
+# savemat('../After_encoding_data/TID/BAN_encoding/train_data_10T.mat', {'train_data': train_data})
+# savemat('../After_encoding_data/TID/BAN_encoding/label_data_10T.mat', {'train_labels': train_labels})
+# savemat('../After_encoding_data/TID/BAN_encoding/TEST/test_data_10T.mat', {'train_data': Test_data})
+# savemat('../After_encoding_data/TID/BAN_encoding/TEST/labeltest_data_10T.mat', {'train_labels': test_labels})
