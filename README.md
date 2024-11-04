@@ -1,4 +1,4 @@
-# Spike Encoding Models for Auditory Analysis
+# Spike Encoding Models for Sound Recognition
 
 This repository provides a collection of spike encoding models, auditory datasets, encoded spike data, trained models, and associated training and evaluation scripts for spike neural networks (SNNs). The models and datasets provided here can be used to explore different encoding strategies and evaluate the robustness of auditory perception under various noise conditions.
 
